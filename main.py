@@ -5,7 +5,7 @@ Main script for BioInf_Utilities bioinformatics tools
 # Import main functions from modules
 from modules.dna_rna_tools import run_dna_rna_tools
 from modules.fastq_utils import filter_fastq_file, filter_fastq_dict
-from bio_files_processor import convert_multiline_fasta_to_oneline, parse_blast_output
+from modules.bio_files_processor import convert_multiline_fasta_to_oneline, parse_blast_output
 
 
 def main():
