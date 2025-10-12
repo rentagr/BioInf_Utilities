@@ -108,3 +108,104 @@ def filter_fastq_dict(
             filtered_sequences[seq_name] = (sequence, quality)
 
     return filtered_sequences
+
+
+import os
+from pathlib import Path
+
+
+def read_fastq_file(input_path: str) -> dict:
+    """
+    Read FASTQ file and convert to dictionary format.
+
+    Args:
+        input_path: Path to input FASTQ file
+
+    Returns:
+        Dictionary with format {header: (sequence, quality)}
+
+    Raises:
+        FileNotFoundError: If input file doesn't exist
+        ValueError: If file has invalid FASTQ format
+    """
+    if not os.path.exists(input_path):
+        raise FileNotFoundError(f"File {input_path} not found")
+
+    sequences = {}
+
+    with open(input_path, "r") as file:
+        lines = [line.strip() for line in file]
+
+    # FASTQ files should have lines divisible by 4
+    if len(lines) % 4 != 0:
+        raise ValueError("Invalid FASTQ format: number of lines not divisible by 4")
+
+    # Process each sequence record (4 lines each)
+    for i in range(0, len(lines), 4):
+        header = lines[i][1:]  # Remove '@' from header
+        sequence = lines[i + 1]
+        quality = lines[i + 3]
+
+        sequences[header] = (sequence, quality)
+
+    return sequences
+
+
+def write_fastq_file(sequences: dict, output_path: str) -> None:
+    """
+    Write sequences from dictionary to FASTQ file.
+
+    Args:
+        sequences: Dictionary {header: (sequence, quality)}
+        output_path: Path for output FASTQ file
+    """
+    # Create output directory if it doesn't exist
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    with open(output_path, "w") as file:
+        for header, (sequence, quality) in sequences.items():
+            file.write(f"@{header}\n")
+            file.write(f"{sequence}\n")
+            file.write("+\n")  # separator line
+            file.write(f"{quality}\n")
+
+
+def filter_fastq_file(
+    input_fastq: str,
+    output_fastq: str,
+    gc_bounds=(0, 100),
+    length_bounds=(0, 2**32),
+    quality_threshold: float = 0,
+) -> None:
+    """
+    Main function to filter FASTQ files.
+
+    This function combines file reading, filtering, and writing.
+
+    Args:
+        input_fastq: Path to input FASTQ file
+        output_fastq: Path for filtered output file
+        gc_bounds: GC content bounds (tuple or single number)
+        length_bounds: Sequence length bounds (tuple or single number)
+        quality_threshold: Minimum average quality score
+    """
+    print(f"Reading FASTQ file: {input_fastq}")
+
+    # Step 1: Read FASTQ file into dictionary
+    sequences = read_fastq_file(input_fastq)
+    print(f"Found {len(sequences)} sequences")
+
+    # Step 2: Filter sequences using existing function
+    print("Filtering sequences...")
+    filtered_sequences = filter_fastq_dict(
+        sequences, gc_bounds, length_bounds, quality_threshold
+    )
+    print(f"After filtering: {len(filtered_sequences)} sequences remain")
+
+    # Step 3: Write filtered sequences to new file
+    print(f"Writing results to: {output_fastq}")
+    write_fastq_file(filtered_sequences, output_fastq)
+
+    print("FASTQ filtering completed successfully")
