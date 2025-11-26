@@ -1,150 +1,49 @@
-# Validating constants
+# Constants for validation
 VALID_NUCLEOTIDES = set("ATCGNnatcgn")
-PHRED33_MIN = 33  # Minimum ASCII code for Phred+33 ('!')
-PHRED33_MAX = 126  # Maximum ASCII code for Phred+126 ('~')
+PHRED33_MIN = 33  # Minimum ASCII for Phred+33 ('!')
+PHRED33_MAX = 126  # Maximum ASCII for Phred+126 ('~')
 
 
 def validate_fastq_record(sequence: str, quality: str) -> bool:
     """
-    Validates a FASTQ record.
-
-    Parameters
-    ----------
-    sequence : str
-        Nucleotide sequence
-    quality : str
-        Quality string in Phred+33 format
-
-    Returns
-    -------
-    bool
-        True if the record is valid, False otherwise
-
-    Examples
-    --------
-    >>> validate_fastq_record("ATCG", "IIII")
-    True
-    >>> validate_fastq_record("ATCG", "III")  # different length
-    False
-    >>> validate_fastq_record("ATCX", "IIII")  # invalid nucleotide
-    False
+    Validate a FASTQ record for correct format and characters.
     """
-    # Check if lengths are equal
+    # Check sequence and quality have same length
     if len(sequence) != len(quality):
         return False
 
-    # Check nucleotide validity
+    # Check all nucleotides are valid
     if not set(sequence.upper()).issubset(VALID_NUCLEOTIDES):
         return False
 
-    # Check quality validity (Phred+33 from '!' to '~')
-    for q_char in quality:
-        if not (PHRED33_MIN <= ord(q_char) <= PHRED33_MAX):
-            return False
-
-    return True
+    # Check quality scores are in valid range
+    return all(PHRED33_MIN <= ord(q_char) <= PHRED33_MAX for q_char in quality)
 
 
 def calculate_gc_content(sequence: str) -> float:
     """
-    Calculates GC content of a sequence in percentage.
-
-    Parameters
-    ----------
-    sequence : str
-        Nucleotide sequence
-
-    Returns
-    -------
-    float
-        GC content in percentage (0-100)
-
-    Examples
-    --------
-    >>> calculate_gc_content("ATCG")
-    50.0
-    >>> calculate_gc_content("GGCC")
-    100.0
-    >>> calculate_gc_content("ATAT")
-    0.0
-    >>> calculate_gc_content("")
-    0.0
+    Calculate GC content percentage of a sequence.
     """
     if not sequence:
         return 0.0
-
-    sequence_upper = sequence.upper()
-    g_count = sequence_upper.count("G")
-    c_count = sequence_upper.count("C")
-    total_bases = len(sequence_upper)
-
-    return (g_count + c_count) / total_bases * 100
+    seq_upper = sequence.upper()
+    return (seq_upper.count("G") + seq_upper.count("C")) / len(seq_upper) * 100
 
 
 def calculate_average_quality(quality_string: str) -> float:
     """
-    Calculates average quality of a sequence in Phred+33 format.
-
-    Parameters
-    ----------
-    quality_string : str
-        Quality string in Phred+33 encoding
-
-    Returns
-    -------
-    float
-        Average quality value
-
-    Examples
-    --------
-    >>> calculate_average_quality("IIII")  # Phred+33: I=40
-    40.0
-    >>> calculate_average_quality("!!!!")  # Phred+33: !=0
-    0.0
-    >>> calculate_average_quality("FFFF")  # Phred+33: F=37
-    37.0
+    Calculate average quality score from Phred+33 encoded string.
     """
     if not quality_string:
         return 0.0
-
     quality_scores = [ord(char) - 33 for char in quality_string]
     return sum(quality_scores) / len(quality_scores)
 
 
 def parse_bounds(bounds, default_low: float, default_high: float):
     """
-    Parses filtering bounds into unified format.
-
-    Parameters
-    ----------
-    bounds : any
-        Filtering bounds. Can be:
-        - None: use default values
-        - Number: set as upper bound
-        - Tuple of 2 numbers: (lower_bound, upper_bound)
-    default_low : float
-        Default lower bound value
-    default_high : float
-        Default upper bound value
-
-    Returns
-    -------
-    tuple
-        Tuple (lower_bound, upper_bound)
-
-    Examples
-    --------
-    >>> parse_bounds((20, 80), 0, 100)
-    (20.0, 80.0)
-    >>> parse_bounds(44.4, 0, 100)
-    (0.0, 44.4)
-    >>> parse_bounds(None, 0, 100)
-    (0.0, 100.0)
-
-    Raises
-    ------
-    ValueError
-        If bounds format is incorrect
+    Parse filtering bounds into standardized format.
+    Supports: None, single number, or tuple of two numbers.
     """
     if bounds is None:
         return (default_low, default_high)
@@ -157,132 +56,156 @@ def parse_bounds(bounds, default_low: float, default_high: float):
 
 
 def check_length_filter(sequence: str, length_bounds) -> bool:
-    """
-    Checks if sequence satisfies length bounds.
-
-    Parameters
-    ----------
-    sequence : str
-        Nucleotide sequence
-    length_bounds : tuple
-        Length bounds (min, max)
-
-    Returns
-    -------
-    bool
-        True if sequence length is within bounds, False otherwise
-
-    Examples
-    --------
-    >>> check_length_filter("ATCG", (1, 10))
-    True
-    >>> check_length_filter("ATCG", (5, 10))
-    False
-    """
+    """Check if sequence length is within bounds."""
+    min_len, max_len = length_bounds
     length = len(sequence)
-    return length_bounds[0] <= length <= length_bounds[1]
+    return min_len <= length <= max_len
 
 
 def check_gc_filter(sequence: str, gc_bounds) -> bool:
-    """
-    Checks if sequence satisfies GC content bounds.
-
-    Parameters
-    ----------
-    sequence : str
-        Nucleotide sequence
-    gc_bounds : tuple
-        GC content bounds (min, max) in percentage
-
-    Returns
-    -------
-    bool
-        True if GC content is within bounds, False otherwise
-
-    Examples
-    --------
-    >>> check_gc_filter("ATCG", (40, 60))
-    True
-    >>> check_gc_filter("GGCC", (0, 50))
-    False
-    """
+    """Check if GC content is within bounds."""
+    min_gc, max_gc = gc_bounds
     gc_content_val = calculate_gc_content(sequence)
-    return gc_bounds[0] <= gc_content_val <= gc_bounds[1]
+    return min_gc <= gc_content_val <= max_gc
 
 
 def check_quality_filter(quality_string: str, quality_threshold: float) -> bool:
-    """
-    Checks if sequence quality satisfies threshold value.
-
-    Parameters
-    ----------
-    quality_string : str
-        Quality string in Phred+33 encoding
-    quality_threshold : float
-        Average quality threshold value
-
-    Returns
-    -------
-    bool
-        True if average quality >= threshold, False otherwise
-
-    Examples
-    --------
-    >>> check_quality_filter("IIII", 20)  # quality 40 >= 20
-    True
-    >>> check_quality_filter("!!!!", 1)   # quality 0 < 1
-    False
-    """
+    """Check if average quality meets threshold."""
     avg_quality = calculate_average_quality(quality_string)
     return avg_quality >= quality_threshold
 
 
-def filter_fastq(
+def filter_fastq_dict(
     seqs: dict,
     gc_bounds=(0, 100),
     length_bounds=(0, 2**32),
     quality_threshold: float = 0,
 ) -> dict:
     """
-    Filters FASTQ sequences by GC content, length and quality.
+    Filter FASTQ sequences stored in dictionary format.
 
-    Arguments:
-        seqs: dict - dictionary of FASTQ sequences {name: (sequence, quality)}
-        gc_bounds: any - GC content bounds (number or tuple). Default (0, 100)
-        length_bounds: any - length bounds (number or tuple). Default (0, 2**32)
-        quality_threshold: float - minimum average quality. Default 0
-
-    Returns:
-        dict - filtered dictionary of sequences
-
-    Examples
-    --------
-    >>> sequences = {
-    ...     'read1': ('ATCG', 'IIII'),
-    ...     'read2': ('GGCC', '!!!!')
-    ... }
-    >>> filter_fastq(sequences, gc_bounds=(0, 50))
-    {'read1': ('ATCG', 'IIII')}
+    This is the original filter function that works with dictionaries.
+    Used internally by the file-based filtering function.
     """
-
-    # Parse bounds into unified format
+    # Parse bounds
     gc_min, gc_max = parse_bounds(gc_bounds, 0, 100)
     length_min, length_max = parse_bounds(length_bounds, 0, 2**32)
 
     filtered_sequences = {}
 
     for seq_name, (sequence, quality) in seqs.items():
-        # Check FASTQ record validity
+        # Validate FASTQ record
         if not validate_fastq_record(sequence, quality):
             continue
 
-        # Check all filtering conditions
+        # Apply all filters
         passes_length = check_length_filter(sequence, (length_min, length_max))
         passes_gc = check_gc_filter(sequence, (gc_min, gc_max))
         passes_quality = check_quality_filter(quality, quality_threshold)
 
-        # If all conditions are met, add to result
+        # Add to results if all filters pass
         if passes_length and passes_gc and passes_quality:
             filtered_sequences[seq_name] = (sequence, quality)
 
     return filtered_sequences
+
+
+import os
+from pathlib import Path
+
+
+def read_fastq_file(input_path: str) -> dict:
+    """
+    Read FASTQ file and convert to dictionary format.
+
+    Args:
+        input_path: Path to input FASTQ file
+
+    Returns:
+        Dictionary with format {header: (sequence, quality)}
+
+    Raises:
+        FileNotFoundError: If input file doesn't exist
+        ValueError: If file has invalid FASTQ format
+    """
+    if not os.path.exists(input_path):
+        raise FileNotFoundError(f"File {input_path} not found")
+
+    sequences = {}
+
+    with open(input_path, "r") as file:
+        lines = [line.strip() for line in file]
+
+    # FASTQ files should have lines divisible by 4
+    if len(lines) % 4 != 0:
+        raise ValueError("Invalid FASTQ format: number of lines not divisible by 4")
+
+    # Process each sequence record (4 lines each)
+    for i in range(0, len(lines), 4):
+        header = lines[i][1:]  # Remove '@' from header
+        sequence = lines[i + 1]
+        quality = lines[i + 3]
+
+        sequences[header] = (sequence, quality)
+
+    return sequences
+
+
+def write_fastq_file(sequences: dict, output_path: str) -> None:
+    """
+    Write sequences from dictionary to FASTQ file.
+
+    Args:
+        sequences: Dictionary {header: (sequence, quality)}
+        output_path: Path for output FASTQ file
+    """
+    # Create output directory if it doesn't exist
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    with open(output_path, "w") as file:
+        for header, (sequence, quality) in sequences.items():
+            file.write(f"@{header}\n")
+            file.write(f"{sequence}\n")
+            file.write("+\n")  # separator line
+            file.write(f"{quality}\n")
+
+
+def filter_fastq_file(
+    input_fastq: str,
+    output_fastq: str,
+    gc_bounds=(0, 100),
+    length_bounds=(0, 2**32),
+    quality_threshold: float = 0,
+) -> None:
+    """
+    Main function to filter FASTQ files.
+
+    This function combines file reading, filtering, and writing.
+
+    Args:
+        input_fastq: Path to input FASTQ file
+        output_fastq: Path for filtered output file
+        gc_bounds: GC content bounds (tuple or single number)
+        length_bounds: Sequence length bounds (tuple or single number)
+        quality_threshold: Minimum average quality score
+    """
+    print(f"Reading FASTQ file: {input_fastq}")
+
+    # Step 1: Read FASTQ file into dictionary
+    sequences = read_fastq_file(input_fastq)
+    print(f"Found {len(sequences)} sequences")
+
+    # Step 2: Filter sequences using existing function
+    print("Filtering sequences...")
+    filtered_sequences = filter_fastq_dict(
+        sequences, gc_bounds, length_bounds, quality_threshold
+    )
+    print(f"After filtering: {len(filtered_sequences)} sequences remain")
+
+    # Step 3: Write filtered sequences to new file
+    print(f"Writing results to: {output_fastq}")
+    write_fastq_file(filtered_sequences, output_fastq)
+
+    print("FASTQ filtering completed successfully")
