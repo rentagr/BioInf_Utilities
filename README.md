@@ -1,129 +1,113 @@
+
+# BioInf_Utilities
+
+[![Python 3.6+](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Linting: flake8](https://img.shields.io/badge/linting-flake8-yellowgreen)](https://flake8.pycqa.org/)
+
+BioInf_Utilities is a Python package for working with biological sequences (DNA, RNA, proteins) and filtering FASTQ files.  
+The project is built using **Object-Oriented Programming (OOP)** principles and leverages **Biopython** for efficient FASTQ processing.
+
+
+
+
 # BioInf_Utilities
 
 BioInf_Utilities is a set of Python utilities for working with biological sequences.
 
 ## Project Structure
 ```python
-
 BioInf_Utilities/
-
-├── main.py              # Main script (entry point)
-
-├── README.md            # Documentation
-
-└── modules/             # Functionality modules
-
-    ├── dna_rna_tools.py    # DNA/RNA utilities
-
-    ├── bio_files_processor.py # Bioinformatic file format utilities
-
-    └── fastq_utils.py      # FASTQ processing
+├── bio_utilities_oop.py # Main module with OOP classes and FASTQ filter
+├── README.md # Documentation
+├── requirements.txt # Dependencies 
 ``` 
 
 ## Installation
 
-git clone (https://github.com/rentagr/BioInf_Utilities.git)
-
-cd BioInf_Utilities
-
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/rentagr/BioInf_Utilities.git
+   cd BioInf_Utilities
+   ``` 
+2. Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
 ## Usage
+### Working with Biological Sequences
 
-## DNA/RNA Sequence Tools
+All sequence classes supports:
+- `len()` - get sequence length
+- Indexing and slicing (e.g., `seq[2]`, `seq[1:5]`) - returns an object of the same class
+- `__str__` and `__repr__` for pretty printing
+- Alphabet validation at initialization
 
-#from modules.dna_rna_tools import run_dna_rna_tools
-
-### Check if sequence is valid nucleic acid
-result = run_dna_rna_tools("ATCG", "is_nucleic_acid")
-
-### Transcribe DNA to RNA  
-result = run_dna_rna_tools("ATCG", "transcribe")
-
-### Get reverse complement
-result = run_dna_rna_tools("ATCG", "reverse_complement")
-
-### Multiple sequences at once
-results = run_dna_rna_tools("ATCG", "AUCG", "reverse")
-
-## FASTQ Processing
-## For file-based processing:
-
-from modules.fastq_utils import filter_fastq_file
-
-### Filter FASTQ files by GC content, length and quality
+#### DNA Sequences
 ```python
-filter_fastq_file(
-    "input.fastq",
-    "filtered/output.fastq", 
-    gc_bounds=(40, 60),
-    length_bounds=(50, 150),
-    quality_threshold=20
+from bio_utilities_oop import DNASequence
+
+dna = DNASequence("ATGC")
+print(dna)                       # ATGC
+print(dna.complement())           # TACG
+print(dna.reverse())              # CGTA
+print(dna.reverse_complement())   # GCAT
+print(dna.transcribe())           # AUGC (returns RNASequence object)
+```
+## RNA Sequences
+```python
+from bio_utilities_oop import RNASequence
+
+rna = RNASequence("AUCG")
+print(rna.complement())           # UAGC
+print(rna.reverse_complement())   # CGAU
+```
+## Protein Sequences
+```python
+from bio_utilities_oop import AminoAcidSequence
+
+protein = AminoAcidSequence("MVR")
+print(protein.molecular_weight()) # Approx. 362.4 g/mol
+```
+### FASTQ Filtering with Biopython
+
+The `filter_fastq` function reads a FASTQ file, filters reads by length, average quality, and GC content, and writes the passing reads to a new file.
+
+```python
+from bio_utilities_oop import filter_fastq
+
+filter_fastq(
+    input_fastq="reads.fastq",
+    output_fastq="filtered.fastq",
+    length_bounds=(50, 150),       # keep reads between 50 and 150 bp
+    quality_threshold=20,           # minimum average Phred score
+    gc_bounds=(40, 60)              # keep reads with 40–60% GC content
 )
 ```
-## For dictionary-based processing:
+
+### Code Quality
+
+This project follows PEP 8 guidelines and uses modern Python tooling:
+
+- **Formatting:** [Black](https://github.com/psf/black) - ensures consistent code style
+- **Linting:** [flake8](https://flake8.pycqa.org/) - checks for PEP 8 compliance and potential errors
+
+### Dependencies
+- **Python 3.6+**
+
+- **Biopython** >= 1.79 (for FASTQ processing)
+
+All dependencies are listed in requirements.txt.
+
+### Documentation
+Full docstrings are provided for all classes and functions. 
+
+- Use Python's built-in [help()]
 ```python
-from modules.fastq_utils import filter_fastq_dict
-
-sequences = {
-    'read1': ('ATCG', 'IIII'),
-    'read2': ('GGCC', '!!!!')
-}
-
-filtered = filter_fastq_dict(
-    sequences,
-    gc_bounds=(20, 80),
-    length_bounds=(50, 150), 
-    quality_threshold=20
-)
-```
-## Bioinformatics File Processing
-
-from bio_files_processor import convert_multiline_fasta_to_oneline, parse_blast_output
-
-### Convert multi-line FASTA to single-line format
-convert_multiline_fasta_to_oneline("input.fasta", "output.fasta")
-
-### Parse BLAST results and extract best matches
-parse_blast_output("blast_results.txt", "best_matches.txt")
-
-## Available Functions
-## DNA/RNA Tools Module
-
-- is_nucleic_acid() - Validate DNA/RNA sequences
-- transcribe() - Transcribe between DNA and RNA  
-- reverse() - Reverse sequences
-- complement() - Get complementary sequences
-- reverse_complement() - Get reverse complement
-- run_dna_rna_tools() - Main interface for DNA/RNA operations
-
-## FASTQ Utilities Module
-
-- validate_fastq_record() - Validate FASTQ format and characters
-- calculate_gc_content() - Calculate GC percentage
-- calculate_average_quality() - Calculate average Phred quality
-- filter_fastq_dict() - Filter sequence dictionaries by criteria
-- filter_fastq_file() - Filter FASTQ files (reads and writes files)
-- read_fastq_file() - Read FASTQ files into dictionary format
-- write_fastq_file() - Write sequences to FASTQ files
-
-## Bio Files Processor Module
-- convert_multiline_fasta_to_oneline() - Convert multi-line FASTA to single-line
-- parse_blast_output() - Extract best matches from BLAST results
-
-## Documentation
-
-Full function documentation is available through built-in docstrings:
-
-```python
-from main import filter_fastq
+from bio_utilities_oop import DNASequence, filter_fastq
+help(DNASequence)
 help(filter_fastq)
 ```
-All functions have type annotations and docstrings.
-
-## Dependencies
-
-- Python 3.6+
-- No external dependencies required
-
 ## Contacts
 
 For questions and suggestions:
