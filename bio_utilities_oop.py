@@ -12,9 +12,10 @@ AminoAcidSequence
 """
 
 from abc import ABC, abstractmethod
-from typing import Union, Tuple, Any
+from typing import Union, Tuple, Any, Optional
 from Bio import SeqIO
 from Bio.SeqUtils import GC
+import logging
 
 """
 #from abc import ABC, abstractmethod
@@ -63,7 +64,7 @@ class BiologicalSequence(ABC):
 
     def __getitem__(self, index: Union[int, slice]) -> Any:
         if isinstance(index, slice):
-            # Возвращаем объект того же класса для срезов
+            # Returning an object of the same class for slices
             return self.__class__(self._sequence[index])
         return self._sequence[index]
 
@@ -107,7 +108,7 @@ class BiologicalSequence(ABC):
     """
 
 
-# Нуклеиновые кислоты (ДНК/РНК)
+# Nucleic acids (DNA/RNA)
 class NucleicAcidSequence(BiologicalSequence):
     """
     Common class for nucleic acids. Contains methods:
@@ -136,7 +137,7 @@ class NucleicAcidSequence(BiologicalSequence):
         return self.reverse().complement()
 
 
-# ДНК
+# DNA
 class DNASequence(NucleicAcidSequence):
     """Class for working with DNA"""
 
@@ -152,7 +153,7 @@ class DNASequence(NucleicAcidSequence):
         return RNASequence(rna_seq)
 
 
-# РНК
+# RNA
 class RNASequence(NucleicAcidSequence):
     """Class for working with RNA."""
 
@@ -163,7 +164,7 @@ class RNASequence(NucleicAcidSequence):
         return all(base in self._alphabet for base in self._sequence)
 
 
-# Белки
+# Squirrels from Pushchino
 class AminoAcidSequence(BiologicalSequence):
     """Class for working with amino acid sequences."""
 
@@ -206,6 +207,7 @@ def filter_fastq(
     length_bounds: Tuple[float, float] = (0, float("inf")),
     quality_threshold: float = 0,
     gc_bounds: Tuple[float, float] = (0, 100),
+    log_file: Optional[str] = None,
 ) -> None:
     """
     Filters a FASTQ file by length, average quality, and GC content.
@@ -217,20 +219,88 @@ def filter_fastq(
         quality_threshold (float): minimum average quality (Phred)
         gc_bounds (tuple): (min, max) allowed GC content in percent
     """
-    with open(input_fastq, "r") as in_handle, open(output_fastq, "w") as out_handle:
-        for record in SeqIO.parse(in_handle, "fastq"):
-            seq = record.seq
-            # Length
-            if not (length_bounds[0] <= len(seq) <= length_bounds[1]):
-                continue
-            # GC content
-            gc_content = GC(seq)
-            if not (gc_bounds[0] <= gc_content <= gc_bounds[1]):
-                continue
-            # Quality
-            qualities = record.letter_annotations["phred_quality"]
-            avg_quality = sum(qualities) / len(qualities)
-            if avg_quality < quality_threshold:
-                continue
-            # Passed all filters
-            SeqIO.write(record, out_handle, "fastq")
+    logger = None
+    if log_file:
+        logger = logging.getLogger('FilterFastQ')
+        logger.setLevel(logging.INFO)
+        # Cleaning up old handlers so as not to duplicate
+        if logger.handlers:
+            logger.handlers.clear()
+        fh = logging.FileHandler(log_file) # Creating a handler in a file. He will write messages to the file.
+        fh.setLevel(logging.INFO)
+        ch = logging.StreamHandler() # Creating a handler in the console (standard output stream). It will display the same messages on the screen.
+        ch.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s') # Setting the message format
+        fh.setFormatter(formatter)
+        ch.setFormatter(formatter)
+        logger.addHandler(fh)
+        logger.addHandler(ch)
+        logger.info(f"Starting filtering: {input_fastq} -> {output_fastq}")
+        logger.info(f"Parameters: length={length_bounds}, quality={quality_threshold}, GC={gc_bounds}")
+    # Counters: total- how many reads have been read, passed- how many reads have passed
+    total = 0
+    passed = 0
+    try:
+        with open(input_fastq, "r") as in_handle, open(output_fastq, "w") as out_handle:
+            for record in SeqIO.parse(in_handle, "fastq"):
+                total += 1
+                seq = record.seq
+                # Length
+                if not (length_bounds[0] <= len(seq) <= length_bounds[1]):
+                    continue
+                # GC content
+                gc_content = GC(seq)
+                if not (gc_bounds[0] <= gc_content <= gc_bounds[1]):
+                    continue
+                # Quality
+                qualities = record.letter_annotations["phred_quality"]
+                avg_quality = sum(qualities) / len(qualities)
+                if avg_quality < quality_threshold:
+                    continue
+                # Passed all filters
+                SeqIO.write(record, out_handle, "fastq")
+                passed += 1
+
+        if logger:
+            logger.info(f"Records processed: {total}, saved: {passed}")
+    # Exception handling
+    except FileNotFoundError as e: # If the input file does not exist
+        if logger:
+            logger.error(f"File is not find: {e}")
+        raise
+    except Exception as e: # Catches any other possible error.
+        if logger:
+            logger.error(f"Error during processing: {e}", exc_info=True)
+        raise
+            
+if __name__ == "__main__":
+    import argparse
+    """
+    The command line interface for terminal operations.       
+    
+    For optional arguments:    
+    type=float - converts the entered string to a floating-point number. By default, type=str.
+    default=... - the default value if the user has not specified an argument. Float("inf") is used for --len-max, meaning there is no upper bound.
+    for --log, the type is a string.
+    """
+
+    parser = argparse.ArgumentParser(description="FASTQ filter by length, quality and GC%") # Creating a parser
+    parser.add_argument("input", help="FASTQ input file") # Adding the required positional argument
+    parser.add_argument("-o", "--output", default="filtered.fastq", help="FASTQ output file") # Here and below -adding optional arguments.
+    parser.add_argument("-l", "--len-min", type=float, default=0, help="Minimum reed length")
+    parser.add_argument("-L", "--len-max", type=float, default=float("inf"), help="Maximum reed length")
+    parser.add_argument("-q", "--qual", type=float, default=0, help="Minimum Average Quality (Phred)")
+    parser.add_argument("-g", "--gc-min", type=float, default=0, help="Minimum GC%")
+    parser.add_argument("-G", "--gc-max", type=float, default=100, help="Maximum GC%")
+    parser.add_argument("--log", default="filter.log", help="File for logs")
+
+    args = parser.parse_args()
+
+    filter_fastq(
+        input_fastq=args.input,
+        output_fastq=args.output,
+        length_bounds=(args.len_min, args.len_max),
+        quality_threshold=args.qual,
+        gc_bounds=(args.gc_min, args.gc_max),
+        log_file=args.log   
+    )
